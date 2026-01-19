@@ -11,7 +11,7 @@ credentials:
       name: Claudinei
       # Hash da senha: Cl@udin3iIt@p3mirim
       # Gerado usando: python gerar_hash_senha.py
-      password: $2b$12$V1.R3rzKY3jnnoHrnqhxuuJ3I/SrTekr9LW4QynRgo2y5ouW4zlpy
+      password: $2b$12$yVI/DAreu9gqwnfSA76CXeuIoz3ACNmP8HlIQIEJ/ZQGNpGISIVb.
 cookie:
   expiry_days: 30
   key: checklist_vistoria_key_12345

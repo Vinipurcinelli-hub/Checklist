@@ -23,8 +23,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Carregar configuração de autenticação
-@st.cache_data
+# Carregar configuração de autenticação (sem cache para permitir atualizações)
 def load_auth_config():
     """Carrega configuração de autenticação"""
     try:
