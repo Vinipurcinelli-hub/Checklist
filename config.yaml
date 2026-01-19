@@ -1,0 +1,15 @@
+credentials:
+  usernames:
+    admin:
+      email: planejamento.visa@suzantur.com.br
+      name: Administrador
+      # Hash da senha: Pl@n3j@m3nt0
+      # Gerado usando: python gerar_hash_senha.py
+      password: $2b$12$qwsjDSUL8bo7lhg927jYtuGEht.inzukf.TBSeDLmi47K3cvpMFaq
+cookie:
+  expiry_days: 30
+  key: checklist_vistoria_key_12345
+  name: checklist_vistoria_cookie
+preauthorized:
+  emails:
+    - planejamento.visa@suzantur.com.br
