@@ -98,11 +98,9 @@ def check_authentication():
                 name, authentication_status, username = result[0], result[1], result[2]
         except Exception as e2:
             st.error(f"Erro na autenticação: {str(e2)}")
-            st.info("Username: admin | Senha: Pl@n3j@m3nt0")
             return False, None
     except Exception as e:
         st.error(f"Erro ao chamar login(): {str(e)}")
-        st.info("Username: admin | Senha: Pl@n3j@m3nt0")
         return False, None
     
     # IMPORTANTE: O authenticator armazena o status no session_state após login
@@ -120,7 +118,6 @@ def check_authentication():
             return True, authenticator
         elif auth_status is False:
             st.error('Usuário/senha incorretos')
-            st.info('💡 Use o **username** (não o email). Exemplo: username = "admin"')
             return False, None
     
     # Se não estiver no session_state, verificar o retorno direto do método
@@ -136,16 +133,11 @@ def check_authentication():
         return True, authenticator
     elif authentication_status == False:
         st.error('Usuário/senha incorretos')
-        st.info('💡 Use o **username** (não o email). Exemplo: username = "admin"')
         return False, None
     
     # Se authentication_status é None, mostrar formulário de login
     if authentication_status is None:
-        st.warning('Por favor, insira seu usuário e senha')
-        with st.expander("ℹ️ Informações de Login"):
-            st.write("**Username:** admin")
-            st.write("**Senha:** Pl@n3j@m3nt0")
-            st.write("⚠️ Use o **username** (admin), não o email!")
+        # Não mostrar informações de login na tela por segurança
         return False, None
     
     # Fallback
