@@ -395,7 +395,7 @@ def format_value(value, column_name=None):
 
 # Função para renderizar botões de PDF e Impressão
 def _render_buttons(df, row_data, idx, column_mapping, is_mobile=False):
-    """Renderiza botões de PDF e Impressão (reutilizável para desktop e mobile)"""
+    """Renderiza botões de PDF e Impressão"""
     try:
         pdf_buffer = generate_pdf(df, row_data['Índice'], column_mapping)
         prefixo = row_data['Prefixo'].replace('/', '_').replace('\\', '_').replace('-', '_')
@@ -408,8 +408,8 @@ def _render_buttons(df, row_data, idx, column_mapping, is_mobile=False):
         # Criar duas subcolunas para os botões
         btn_col1, btn_col2 = st.columns(2)
         
-        # Usar sufixo para diferenciar chaves entre desktop e mobile
-        suffix = "_mobile" if is_mobile else "_desktop"
+        # Chave única para os botões
+        suffix = ""
         
         with btn_col1:
             st.download_button(
@@ -812,36 +812,6 @@ def main():
     # Gerenciador de Arquivos
     st.header("📁 Registros de Vistoria")
     
-    # Detectar dispositivo (mobile ou desktop) via JavaScript e session state
-    if 'is_mobile' not in st.session_state:
-        st.session_state.is_mobile = None
-    
-    # JavaScript para detectar tamanho da tela e atualizar session state
-    html("""
-    <script>
-    (function() {
-        var width = window.innerWidth || document.documentElement.clientWidth || screen.width;
-        var isMobile = width <= 768;
-        
-        // Enviar informação para o Streamlit via query parameter
-        if (window.location.search.indexOf('mobile=') === -1) {
-            var newUrl = window.location.href.split('?')[0] + '?mobile=' + (isMobile ? '1' : '0');
-            window.history.replaceState({}, '', newUrl);
-            window.location.reload();
-        }
-    })();
-    </script>
-    """, height=0)
-    
-    # Verificar query parameter para determinar se é mobile
-    query_params = st.experimental_get_query_params() if hasattr(st, 'experimental_get_query_params') else {}
-    if 'mobile' in query_params:
-        is_mobile_device = query_params['mobile'][0] == '1'
-        st.session_state.is_mobile = is_mobile_device
-    elif st.session_state.is_mobile is None:
-        # Por padrão, assumir desktop até que JavaScript detecte
-        st.session_state.is_mobile = False
-    
     # Tabela de registros
     if len(df) > 0:
         # Preparar dados para exibição
@@ -901,157 +871,6 @@ def main():
                 'Índice': idx
             })
         
-        # CSS para responsividade
-        st.markdown("""
-        <style>
-        .stDataFrame {
-            font-size: 14px;
-        }
-        .registro-row {
-            padding: 10px;
-            margin: 5px 0;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-        
-        /* Layout de card para mobile */
-        .registro-card {
-            background-color: #262730;
-            border: 1px solid #3d3d3d;
-            border-radius: 8px;
-            padding: 1.2rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .registro-card-item {
-            margin-bottom: 0.8rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #3d3d3d;
-        }
-        
-        .registro-card-item:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-            padding-bottom: 0;
-        }
-        
-        .registro-card-label {
-            font-weight: 600;
-            color: #9ca3af;
-            margin-right: 0.5rem;
-            font-size: 0.9rem;
-        }
-        
-        .registro-card-value {
-            color: #ffffff;
-            font-size: 1rem;
-        }
-        
-        /* CSS básico - JavaScript vai controlar a visibilidade */
-        .mobile-cards {
-            display: none;
-        }
-        .desktop-table {
-            display: block;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # JavaScript para esconder elementos de forma mais agressiva
-        html("""
-        <script>
-        (function() {
-            function applyLayout() {
-                var width = window.innerWidth || document.documentElement.clientWidth || screen.width;
-                var isMobile = width <= 768;
-                
-                // Buscar todos os elementos
-                var desktopElements = Array.from(document.querySelectorAll('.desktop-table'));
-                var mobileElements = Array.from(document.querySelectorAll('.mobile-cards'));
-                
-                if (isMobile) {
-                    // MOBILE: esconder desktop completamente
-                    desktopElements.forEach(function(el) {
-                        if (el) {
-                            el.style.cssText = 'display: none !important; visibility: hidden !important; height: 0 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important;';
-                            // Esconder todos os filhos
-                            var allChildren = el.querySelectorAll('*');
-                            allChildren.forEach(function(child) {
-                                child.style.cssText = 'display: none !important; visibility: hidden !important;';
-                            });
-                        }
-                    });
-                    
-                    // Mostrar mobile
-                    mobileElements.forEach(function(el) {
-                        if (el) {
-                            el.style.cssText = 'display: block !important; visibility: visible !important;';
-                        }
-                    });
-                } else {
-                    // DESKTOP: mostrar desktop
-                    desktopElements.forEach(function(el) {
-                        if (el) {
-                            el.style.cssText = 'display: block !important; visibility: visible !important;';
-                        }
-                    });
-                    
-                    // Esconder mobile completamente
-                    mobileElements.forEach(function(el) {
-                        if (el) {
-                            el.style.cssText = 'display: none !important; visibility: hidden !important; height: 0 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important;';
-                            // Esconder todos os filhos
-                            var allChildren = el.querySelectorAll('*');
-                            allChildren.forEach(function(child) {
-                                child.style.cssText = 'display: none !important; visibility: hidden !important;';
-                            });
-                        }
-                    });
-                }
-            }
-            
-            // Executar imediatamente
-            applyLayout();
-            
-            // Executar quando DOM estiver pronto
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', applyLayout);
-            } else {
-                applyLayout();
-            }
-            
-            // Executar ao redimensionar
-            var resizeTimer;
-            window.addEventListener('resize', function() {
-                clearTimeout(resizeTimer);
-                resizeTimer = setTimeout(applyLayout, 50);
-            });
-            
-            // Executar múltiplas vezes (Streamlit renderiza assincronamente)
-            [50, 100, 200, 500, 1000, 1500, 2000, 3000].forEach(function(delay) {
-                setTimeout(applyLayout, delay);
-            });
-            
-            // Observar mudanças no DOM do Streamlit
-            if (window.MutationObserver) {
-                var observer = new MutationObserver(function() {
-                    setTimeout(applyLayout, 50);
-                });
-                observer.observe(document.body, {
-                    childList: true,
-                    subtree: true,
-                    attributes: false
-                });
-            }
-        })();
-        </script>
-        """, height=0)
-        
-        # Layout Desktop (Tabela) - será escondido em mobile via CSS/JS
-        st.markdown('<div class="desktop-table" style="display: block;">', unsafe_allow_html=True)
-        
         # Cabeçalho da tabela
         header_cols = st.columns([2, 2, 2, 2, 2, 2.5])
         with header_cols[0]:
@@ -1069,7 +888,7 @@ def main():
         
         st.markdown("---")
         
-        # Exibir registros em formato de tabela (desktop)
+        # Exibir registros
         for idx, row_data in enumerate(display_data):
             col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 2, 2.5])
             
@@ -1089,52 +908,11 @@ def main():
                 st.write(row_data['Vistoriador'])
             
             with col6:
-                # Função para botões (desktop)
+                # Função para botões
                 _render_buttons(df, row_data, idx, column_mapping, is_mobile=False)
             
             if idx < len(display_data) - 1:
                 st.markdown("---")
-        
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            # Layout Mobile (Cards)
-            st.markdown('<div class="mobile-cards">', unsafe_allow_html=True)
-            
-            for idx, row_data in enumerate(display_data):
-                # Card para mobile
-                with st.container():
-                    st.markdown(f"""
-                    <div class="registro-card">
-                        <div class="registro-card-item">
-                            <span class="registro-card-label">Data:</span>
-                            <span class="registro-card-value">{row_data['Data']}</span>
-                        </div>
-                        <div class="registro-card-item">
-                            <span class="registro-card-label">Hora:</span>
-                            <span class="registro-card-value">{row_data['Hora']}</span>
-                        </div>
-                        <div class="registro-card-item">
-                            <span class="registro-card-label">Prefixo:</span>
-                            <span class="registro-card-value">{row_data['Prefixo']}</span>
-                        </div>
-                        <div class="registro-card-item">
-                            <span class="registro-card-label">Cidade:</span>
-                            <span class="registro-card-value">{row_data['Cidade']}</span>
-                        </div>
-                        <div class="registro-card-item">
-                            <span class="registro-card-label">Vistoriador:</span>
-                            <span class="registro-card-value">{row_data['Vistoriador']}</span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Botões para mobile
-                    _render_buttons(df, row_data, idx, column_mapping, is_mobile=True)
-                    
-                    if idx < len(display_data) - 1:
-                        st.markdown("<br/>", unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("Nenhum registro encontrado.")
 
