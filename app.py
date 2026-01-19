@@ -812,6 +812,36 @@ def main():
     # Gerenciador de Arquivos
     st.header("📁 Registros de Vistoria")
     
+    # Detectar dispositivo (mobile ou desktop) via JavaScript e session state
+    if 'is_mobile' not in st.session_state:
+        st.session_state.is_mobile = None
+    
+    # JavaScript para detectar tamanho da tela e atualizar session state
+    html("""
+    <script>
+    (function() {
+        var width = window.innerWidth || document.documentElement.clientWidth || screen.width;
+        var isMobile = width <= 768;
+        
+        // Enviar informação para o Streamlit via query parameter
+        if (window.location.search.indexOf('mobile=') === -1) {
+            var newUrl = window.location.href.split('?')[0] + '?mobile=' + (isMobile ? '1' : '0');
+            window.history.replaceState({}, '', newUrl);
+            window.location.reload();
+        }
+    })();
+    </script>
+    """, height=0)
+    
+    # Verificar query parameter para determinar se é mobile
+    query_params = st.experimental_get_query_params() if hasattr(st, 'experimental_get_query_params') else {}
+    if 'mobile' in query_params:
+        is_mobile_device = query_params['mobile'][0] == '1'
+        st.session_state.is_mobile = is_mobile_device
+    elif st.session_state.is_mobile is None:
+        # Por padrão, assumir desktop até que JavaScript detecte
+        st.session_state.is_mobile = False
+    
     # Tabela de registros
     if len(df) > 0:
         # Preparar dados para exibição
@@ -919,43 +949,17 @@ def main():
             font-size: 1rem;
         }
         
-        /* Por padrão: esconder mobile, mostrar desktop */
+        /* CSS básico - JavaScript vai controlar a visibilidade */
         .mobile-cards {
-            display: none !important;
+            display: none;
         }
         .desktop-table {
-            display: block !important;
-        }
-        
-        /* Mobile: esconder desktop, mostrar mobile */
-        @media only screen and (max-width: 768px) {
-            .desktop-table {
-                display: none !important;
-            }
-            .desktop-table * {
-                display: none !important;
-            }
-            .mobile-cards {
-                display: block !important;
-            }
-        }
-        
-        /* Desktop: esconder mobile, mostrar desktop */
-        @media only screen and (min-width: 769px) {
-            .mobile-cards {
-                display: none !important;
-            }
-            .mobile-cards * {
-                display: none !important;
-            }
-            .desktop-table {
-                display: block !important;
-            }
+            display: block;
         }
         </style>
         """, unsafe_allow_html=True)
         
-        # JavaScript para forçar responsividade (executa antes e depois da renderização)
+        # JavaScript para esconder elementos de forma mais agressiva
         html("""
         <script>
         (function() {
@@ -963,28 +967,49 @@ def main():
                 var width = window.innerWidth || document.documentElement.clientWidth || screen.width;
                 var isMobile = width <= 768;
                 
-                var desktopDivs = document.querySelectorAll('.desktop-table');
-                var mobileDivs = document.querySelectorAll('.mobile-cards');
+                // Buscar todos os elementos
+                var desktopElements = Array.from(document.querySelectorAll('.desktop-table'));
+                var mobileElements = Array.from(document.querySelectorAll('.mobile-cards'));
                 
-                desktopDivs.forEach(function(div) {
-                    if (div) {
-                        if (isMobile) {
-                            div.style.cssText = 'display: none !important; visibility: hidden !important;';
-                        } else {
-                            div.style.cssText = 'display: block !important; visibility: visible !important;';
+                if (isMobile) {
+                    // MOBILE: esconder desktop completamente
+                    desktopElements.forEach(function(el) {
+                        if (el) {
+                            el.style.cssText = 'display: none !important; visibility: hidden !important; height: 0 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important;';
+                            // Esconder todos os filhos
+                            var allChildren = el.querySelectorAll('*');
+                            allChildren.forEach(function(child) {
+                                child.style.cssText = 'display: none !important; visibility: hidden !important;';
+                            });
                         }
-                    }
-                });
-                
-                mobileDivs.forEach(function(div) {
-                    if (div) {
-                        if (isMobile) {
-                            div.style.cssText = 'display: block !important; visibility: visible !important;';
-                        } else {
-                            div.style.cssText = 'display: none !important; visibility: hidden !important;';
+                    });
+                    
+                    // Mostrar mobile
+                    mobileElements.forEach(function(el) {
+                        if (el) {
+                            el.style.cssText = 'display: block !important; visibility: visible !important;';
                         }
-                    }
-                });
+                    });
+                } else {
+                    // DESKTOP: mostrar desktop
+                    desktopElements.forEach(function(el) {
+                        if (el) {
+                            el.style.cssText = 'display: block !important; visibility: visible !important;';
+                        }
+                    });
+                    
+                    // Esconder mobile completamente
+                    mobileElements.forEach(function(el) {
+                        if (el) {
+                            el.style.cssText = 'display: none !important; visibility: hidden !important; height: 0 !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important;';
+                            // Esconder todos os filhos
+                            var allChildren = el.querySelectorAll('*');
+                            allChildren.forEach(function(child) {
+                                child.style.cssText = 'display: none !important; visibility: hidden !important;';
+                            });
+                        }
+                    });
+                }
             }
             
             // Executar imediatamente
@@ -993,30 +1018,31 @@ def main():
             // Executar quando DOM estiver pronto
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', applyLayout);
+            } else {
+                applyLayout();
             }
             
             // Executar ao redimensionar
             var resizeTimer;
             window.addEventListener('resize', function() {
                 clearTimeout(resizeTimer);
-                resizeTimer = setTimeout(applyLayout, 100);
+                resizeTimer = setTimeout(applyLayout, 50);
             });
             
-            // Executar múltiplas vezes para garantir (Streamlit renderiza assincronamente)
-            setTimeout(applyLayout, 100);
-            setTimeout(applyLayout, 300);
-            setTimeout(applyLayout, 600);
-            setTimeout(applyLayout, 1000);
-            setTimeout(applyLayout, 2000);
+            // Executar múltiplas vezes (Streamlit renderiza assincronamente)
+            [50, 100, 200, 500, 1000, 1500, 2000, 3000].forEach(function(delay) {
+                setTimeout(applyLayout, delay);
+            });
             
-            // Observar mudanças no DOM
+            // Observar mudanças no DOM do Streamlit
             if (window.MutationObserver) {
                 var observer = new MutationObserver(function() {
-                    applyLayout();
+                    setTimeout(applyLayout, 50);
                 });
                 observer.observe(document.body, {
                     childList: true,
-                    subtree: true
+                    subtree: true,
+                    attributes: false
                 });
             }
         })();
@@ -1069,46 +1095,46 @@ def main():
             if idx < len(display_data) - 1:
                 st.markdown("---")
         
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Layout Mobile (Cards) - será escondido em desktop via CSS/JS
-        st.markdown('<div class="mobile-cards" style="display: none;">', unsafe_allow_html=True)
-        
-        for idx, row_data in enumerate(display_data):
-            # Card para mobile
-            with st.container():
-                st.markdown(f"""
-                <div class="registro-card">
-                    <div class="registro-card-item">
-                        <span class="registro-card-label">Data:</span>
-                        <span class="registro-card-value">{row_data['Data']}</span>
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            # Layout Mobile (Cards)
+            st.markdown('<div class="mobile-cards">', unsafe_allow_html=True)
+            
+            for idx, row_data in enumerate(display_data):
+                # Card para mobile
+                with st.container():
+                    st.markdown(f"""
+                    <div class="registro-card">
+                        <div class="registro-card-item">
+                            <span class="registro-card-label">Data:</span>
+                            <span class="registro-card-value">{row_data['Data']}</span>
+                        </div>
+                        <div class="registro-card-item">
+                            <span class="registro-card-label">Hora:</span>
+                            <span class="registro-card-value">{row_data['Hora']}</span>
+                        </div>
+                        <div class="registro-card-item">
+                            <span class="registro-card-label">Prefixo:</span>
+                            <span class="registro-card-value">{row_data['Prefixo']}</span>
+                        </div>
+                        <div class="registro-card-item">
+                            <span class="registro-card-label">Cidade:</span>
+                            <span class="registro-card-value">{row_data['Cidade']}</span>
+                        </div>
+                        <div class="registro-card-item">
+                            <span class="registro-card-label">Vistoriador:</span>
+                            <span class="registro-card-value">{row_data['Vistoriador']}</span>
+                        </div>
                     </div>
-                    <div class="registro-card-item">
-                        <span class="registro-card-label">Hora:</span>
-                        <span class="registro-card-value">{row_data['Hora']}</span>
-                    </div>
-                    <div class="registro-card-item">
-                        <span class="registro-card-label">Prefixo:</span>
-                        <span class="registro-card-value">{row_data['Prefixo']}</span>
-                    </div>
-                    <div class="registro-card-item">
-                        <span class="registro-card-label">Cidade:</span>
-                        <span class="registro-card-value">{row_data['Cidade']}</span>
-                    </div>
-                    <div class="registro-card-item">
-                        <span class="registro-card-label">Vistoriador:</span>
-                        <span class="registro-card-value">{row_data['Vistoriador']}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Botões para mobile
-                _render_buttons(df, row_data, idx, column_mapping, is_mobile=True)
-                
-                if idx < len(display_data) - 1:
-                    st.markdown("<br/>", unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+                    
+                    # Botões para mobile
+                    _render_buttons(df, row_data, idx, column_mapping, is_mobile=True)
+                    
+                    if idx < len(display_data) - 1:
+                        st.markdown("<br/>", unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("Nenhum registro encontrado.")
 
