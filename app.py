@@ -53,14 +53,38 @@ def check_authentication():
         config['cookie']['expiry_days']
     )
     
-    # A API mudou: apenas o parâmetro location é necessário
-    name, authentication_status, username = authenticator.login(location='main')
+    # A API do streamlit-authenticator varia entre versões
+    # Tentar diferentes formas de chamar o método login()
+    try:
+        # Tentar com parâmetro posicional 'main' (versão mais comum)
+        result = authenticator.login('main')
+        if result is None:
+            name, authentication_status, username = None, None, None
+        else:
+            name, authentication_status, username = result
+    except TypeError:
+        try:
+            # Tentar sem parâmetros (algumas versões)
+            result = authenticator.login()
+            if result is None:
+                name, authentication_status, username = None, None, None
+            else:
+                name, authentication_status, username = result
+        except Exception as e:
+            st.error(f"Erro na autenticação: {str(e)}")
+            st.info("Username: admin | Senha: Pl@n3j@m3nt0")
+            return False, None
     
     if authentication_status == False:
         st.error('Usuário/senha incorretos')
+        st.info('💡 Use o **username** (não o email). Exemplo: username = "admin"')
         return False, None
     elif authentication_status == None:
         st.warning('Por favor, insira seu usuário e senha')
+        with st.expander("ℹ️ Informações de Login"):
+            st.write("**Username:** admin")
+            st.write("**Senha:** Pl@n3j@m3nt0")
+            st.write("⚠️ Use o **username** (admin), não o email!")
         return False, None
     elif authentication_status:
         # Usuário autenticado
