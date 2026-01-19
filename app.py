@@ -53,7 +53,9 @@ def check_authentication():
         config['cookie']['expiry_days']
     )
     
-    name, authentication_status, username = authenticator.login('Login', 'main')
+    # A API mudou: o primeiro parâmetro é o location ('main', 'sidebar' ou 'unrendered')
+    # O segundo parâmetro (form_name) foi removido nas versões mais recentes
+    name, authentication_status, username = authenticator.login(location='main', form_name='Login')
     
     if authentication_status == False:
         st.error('Usuário/senha incorretos')
@@ -63,7 +65,7 @@ def check_authentication():
         return False, None
     elif authentication_status:
         # Usuário autenticado
-        authenticator.logout('Logout', 'sidebar')
+        authenticator.logout(location='sidebar', button_name='Logout')
         st.sidebar.write(f'Bem-vindo, *{name}*')
         return True, authenticator
     
