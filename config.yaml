@@ -6,6 +6,12 @@ credentials:
       # Hash da senha: Pl@n3j@m3nt0
       # Gerado usando: python gerar_hash_senha.py
       password: $2b$12$qwsjDSUL8bo7lhg927jYtuGEht.inzukf.TBSeDLmi47K3cvpMFaq
+    claudinei:
+      email: claudinei@suzantur.com.br
+      name: Claudinei
+      # Hash da senha: Cl@udin3iIt@p3mirim
+      # Gerado usando: python gerar_hash_senha.py
+      password: $2b$12$V1.R3rzKY3jnnoHrnqhxuuJ3I/SrTekr9LW4QynRgo2y5ouW4zlpy
 cookie:
   expiry_days: 30
   key: checklist_vistoria_key_12345

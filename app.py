@@ -393,6 +393,74 @@ def format_value(value, column_name=None):
         # Se houver qualquer erro, retornar como string
         return str(value)
 
+# Função para renderizar botões de PDF e Impressão
+def _render_buttons(df, row_data, idx, column_mapping, is_mobile=False):
+    """Renderiza botões de PDF e Impressão (reutilizável para desktop e mobile)"""
+    try:
+        pdf_buffer = generate_pdf(df, row_data['Índice'], column_mapping)
+        prefixo = row_data['Prefixo'].replace('/', '_').replace('\\', '_').replace('-', '_')
+        data_str = row_data['Data'].replace('-', '_').replace(' ', '_')
+        filename = f"Relatorio_Vistoria_{prefixo}_{data_str}.pdf"
+        
+        # Converter PDF para base64 para impressão
+        pdf_base64 = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
+        
+        # Criar duas subcolunas para os botões
+        btn_col1, btn_col2 = st.columns(2)
+        
+        # Usar sufixo para diferenciar chaves entre desktop e mobile
+        suffix = "_mobile" if is_mobile else "_desktop"
+        
+        with btn_col1:
+            st.download_button(
+                label="📄 PDF",
+                data=pdf_buffer,
+                file_name=filename,
+                mime="application/pdf",
+                key=f"download_{idx}{suffix}",
+                use_container_width=True
+            )
+        
+        with btn_col2:
+            # Botão de impressão usando JavaScript
+            print_key = f"print_btn_{idx}{suffix}"
+            if print_key not in st.session_state:
+                st.session_state[print_key] = False
+            
+            if st.button("🖨️ Imprimir", key=f"print_{idx}{suffix}", use_container_width=True):
+                st.session_state[print_key] = True
+            
+            # Executar JavaScript quando o botão for clicado
+            if st.session_state[print_key]:
+                # Criar função JavaScript para imprimir
+                print_js = f"""
+                <script>
+                (function() {{
+                    var pdfBase64 = '{pdf_base64}';
+                    var pdfBlob = atob(pdfBase64);
+                    var pdfArray = new Uint8Array(pdfBlob.length);
+                    for (var i = 0; i < pdfBlob.length; i++) {{
+                        pdfArray[i] = pdfBlob.charCodeAt(i);
+                    }}
+                    var blob = new Blob([pdfArray], {{type: 'application/pdf'}});
+                    var url = URL.createObjectURL(blob);
+                    var printWindow = window.open(url, '_blank');
+                    if (printWindow) {{
+                        printWindow.onload = function() {{
+                            setTimeout(function() {{
+                                printWindow.print();
+                            }}, 500);
+                        }};
+                    }}
+                }})();
+                </script>
+                """
+                html(print_js, height=0)
+                st.session_state[print_key] = False
+                
+    except Exception as e:
+        st.error(f"Erro: {str(e)[:30]}")
+
 # Função para gerar PDF
 def generate_pdf(df, index, column_mapping=None):
     buffer = io.BytesIO()
@@ -803,7 +871,7 @@ def main():
                 'Índice': idx
             })
         
-        # Cabeçalho da tabela
+        # CSS para responsividade
         st.markdown("""
         <style>
         .stDataFrame {
@@ -816,8 +884,59 @@ def main():
             border-radius: 5px;
             background-color: #f9f9f9;
         }
+        
+        /* Layout de card para mobile */
+        .registro-card {
+            background-color: #262730;
+            border: 1px solid #3d3d3d;
+            border-radius: 8px;
+            padding: 1.2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .registro-card-item {
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #3d3d3d;
+        }
+        
+        .registro-card-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .registro-card-label {
+            font-weight: 600;
+            color: #9ca3af;
+            margin-right: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .registro-card-value {
+            color: #ffffff;
+            font-size: 1rem;
+        }
+        
+        /* Esconder tabela desktop em mobile */
+        @media (max-width: 768px) {
+            .desktop-table {
+                display: none;
+            }
+        }
+        
+        /* Esconder cards mobile em desktop */
+        @media (min-width: 769px) {
+            .mobile-cards {
+                display: none;
+            }
+        }
         </style>
         """, unsafe_allow_html=True)
+        
+        # Layout Desktop (Tabela)
+        st.markdown('<div class="desktop-table">', unsafe_allow_html=True)
         
         # Cabeçalho da tabela
         header_cols = st.columns([2, 2, 2, 2, 2, 2.5])
@@ -836,7 +955,7 @@ def main():
         
         st.markdown("---")
         
-        # Exibir registros
+        # Exibir registros em formato de tabela (desktop)
         for idx, row_data in enumerate(display_data):
             col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 2, 2.5])
             
@@ -856,6 +975,52 @@ def main():
                 st.write(row_data['Vistoriador'])
             
             with col6:
+                # Função para botões (desktop)
+                _render_buttons(df, row_data, idx, column_mapping, is_mobile=False)
+            
+            if idx < len(display_data) - 1:
+                st.markdown("---")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Layout Mobile (Cards)
+        st.markdown('<div class="mobile-cards">', unsafe_allow_html=True)
+        
+        for idx, row_data in enumerate(display_data):
+            # Card para mobile
+            with st.container():
+                st.markdown(f"""
+                <div class="registro-card">
+                    <div class="registro-card-item">
+                        <span class="registro-card-label">Data:</span>
+                        <span class="registro-card-value">{row_data['Data']}</span>
+                    </div>
+                    <div class="registro-card-item">
+                        <span class="registro-card-label">Hora:</span>
+                        <span class="registro-card-value">{row_data['Hora']}</span>
+                    </div>
+                    <div class="registro-card-item">
+                        <span class="registro-card-label">Prefixo:</span>
+                        <span class="registro-card-value">{row_data['Prefixo']}</span>
+                    </div>
+                    <div class="registro-card-item">
+                        <span class="registro-card-label">Cidade:</span>
+                        <span class="registro-card-value">{row_data['Cidade']}</span>
+                    </div>
+                    <div class="registro-card-item">
+                        <span class="registro-card-label">Vistoriador:</span>
+                        <span class="registro-card-value">{row_data['Vistoriador']}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Botões para mobile
+                _render_buttons(df, row_data, idx, column_mapping, is_mobile=True)
+                
+                if idx < len(display_data) - 1:
+                    st.markdown("<br/>", unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
                 # Gerar PDF e disponibilizar para download e impressão
                 try:
                     pdf_buffer = generate_pdf(df, row_data['Índice'], column_mapping)

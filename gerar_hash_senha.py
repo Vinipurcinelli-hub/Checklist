@@ -9,7 +9,7 @@ Para gerar hash de outra senha, edite a variável 'password' abaixo.
 import sys
 
 # EDITAR AQUI: Coloque a senha que deseja gerar o hash
-password = 'Pl@n3j@m3nt0'
+password = 'Cl@udin3iIt@p3mirim'
 
 print(f"Gerando hash para a senha: '{password}'")
 print("-" * 60)
