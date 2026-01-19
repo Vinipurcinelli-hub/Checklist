@@ -919,24 +919,112 @@ def main():
             font-size: 1rem;
         }
         
-        /* Esconder tabela desktop em mobile */
-        @media (max-width: 768px) {
+        /* Por padrão: esconder mobile, mostrar desktop */
+        .mobile-cards {
+            display: none !important;
+        }
+        .desktop-table {
+            display: block !important;
+        }
+        
+        /* Mobile: esconder desktop, mostrar mobile */
+        @media only screen and (max-width: 768px) {
             .desktop-table {
-                display: none;
+                display: none !important;
+            }
+            .desktop-table * {
+                display: none !important;
+            }
+            .mobile-cards {
+                display: block !important;
             }
         }
         
-        /* Esconder cards mobile em desktop */
-        @media (min-width: 769px) {
+        /* Desktop: esconder mobile, mostrar desktop */
+        @media only screen and (min-width: 769px) {
             .mobile-cards {
-                display: none;
+                display: none !important;
+            }
+            .mobile-cards * {
+                display: none !important;
+            }
+            .desktop-table {
+                display: block !important;
             }
         }
         </style>
         """, unsafe_allow_html=True)
         
-        # Layout Desktop (Tabela)
-        st.markdown('<div class="desktop-table">', unsafe_allow_html=True)
+        # JavaScript para forçar responsividade (executa antes e depois da renderização)
+        html("""
+        <script>
+        (function() {
+            function applyLayout() {
+                var width = window.innerWidth || document.documentElement.clientWidth || screen.width;
+                var isMobile = width <= 768;
+                
+                var desktopDivs = document.querySelectorAll('.desktop-table');
+                var mobileDivs = document.querySelectorAll('.mobile-cards');
+                
+                desktopDivs.forEach(function(div) {
+                    if (div) {
+                        if (isMobile) {
+                            div.style.cssText = 'display: none !important; visibility: hidden !important;';
+                        } else {
+                            div.style.cssText = 'display: block !important; visibility: visible !important;';
+                        }
+                    }
+                });
+                
+                mobileDivs.forEach(function(div) {
+                    if (div) {
+                        if (isMobile) {
+                            div.style.cssText = 'display: block !important; visibility: visible !important;';
+                        } else {
+                            div.style.cssText = 'display: none !important; visibility: hidden !important;';
+                        }
+                    }
+                });
+            }
+            
+            // Executar imediatamente
+            applyLayout();
+            
+            // Executar quando DOM estiver pronto
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', applyLayout);
+            }
+            
+            // Executar ao redimensionar
+            var resizeTimer;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(applyLayout, 100);
+            });
+            
+            // Executar múltiplas vezes para garantir (Streamlit renderiza assincronamente)
+            setTimeout(applyLayout, 100);
+            setTimeout(applyLayout, 300);
+            setTimeout(applyLayout, 600);
+            setTimeout(applyLayout, 1000);
+            setTimeout(applyLayout, 2000);
+            
+            // Observar mudanças no DOM
+            if (window.MutationObserver) {
+                var observer = new MutationObserver(function() {
+                    applyLayout();
+                });
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+        })();
+        </script>
+        """, height=0)
+        
+        # Layout Desktop (Tabela) - será escondido em mobile via CSS/JS
+        st.markdown('<div class="desktop-table" style="display: block;">', unsafe_allow_html=True)
         
         # Cabeçalho da tabela
         header_cols = st.columns([2, 2, 2, 2, 2, 2.5])
@@ -983,8 +1071,8 @@ def main():
         
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Layout Mobile (Cards)
-        st.markdown('<div class="mobile-cards">', unsafe_allow_html=True)
+        # Layout Mobile (Cards) - será escondido em desktop via CSS/JS
+        st.markdown('<div class="mobile-cards" style="display: none;">', unsafe_allow_html=True)
         
         for idx, row_data in enumerate(display_data):
             # Card para mobile
