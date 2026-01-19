@@ -55,25 +55,37 @@ def check_authentication():
     
     # A API do streamlit-authenticator varia entre versões
     # Tentar diferentes formas de chamar o método login()
+    name = None
+    authentication_status = None
+    username = None
+    
     try:
         # Tentar com parâmetro posicional 'main' (versão mais comum)
         result = authenticator.login('main')
-        if result is None:
-            name, authentication_status, username = None, None, None
-        else:
-            name, authentication_status, username = result
-    except TypeError:
+        if result is not None and isinstance(result, (tuple, list)) and len(result) >= 3:
+            name, authentication_status, username = result[0], result[1], result[2]
+        elif result is not None:
+            # Se retornar algo diferente, tentar acessar como atributos
+            if hasattr(result, 'name'):
+                name = result.name
+            if hasattr(result, 'authentication_status'):
+                authentication_status = result.authentication_status
+            if hasattr(result, 'username'):
+                username = result.username
+    except TypeError as e1:
         try:
             # Tentar sem parâmetros (algumas versões)
             result = authenticator.login()
-            if result is None:
-                name, authentication_status, username = None, None, None
-            else:
-                name, authentication_status, username = result
-        except Exception as e:
-            st.error(f"Erro na autenticação: {str(e)}")
+            if result is not None and isinstance(result, (tuple, list)) and len(result) >= 3:
+                name, authentication_status, username = result[0], result[1], result[2]
+        except Exception as e2:
+            st.error(f"Erro na autenticação: {str(e2)}")
             st.info("Username: admin | Senha: Pl@n3j@m3nt0")
             return False, None
+    except Exception as e:
+        st.error(f"Erro ao chamar login(): {str(e)}")
+        st.info("Username: admin | Senha: Pl@n3j@m3nt0")
+        return False, None
     
     if authentication_status == False:
         st.error('Usuário/senha incorretos')
