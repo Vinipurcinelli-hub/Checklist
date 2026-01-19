@@ -53,8 +53,26 @@ def check_authentication():
         config['cookie']['expiry_days']
     )
     
-    # A API do streamlit-authenticator varia entre versões
-    # Tentar diferentes formas de chamar o método login()
+    # Verificar primeiro se já está autenticado no session_state
+    # Isso evita chamar login() desnecessariamente
+    if 'authentication_status' in st.session_state:
+        auth_status = st.session_state.get('authentication_status')
+        if auth_status is True:
+            # Usuário já autenticado - não precisa chamar login() novamente
+            auth_name = st.session_state.get('name', 'Usuário')
+            try:
+                authenticator.logout(location='sidebar')
+            except:
+                pass
+            st.sidebar.write(f'Bem-vindo, *{auth_name}*')
+            return True, authenticator
+        elif auth_status is False:
+            # Login falhou anteriormente
+            st.error('Usuário/senha incorretos')
+            st.info('💡 Use o **username** (não o email). Exemplo: username = "admin"')
+            return False, None
+    
+    # Se não estiver autenticado, chamar o método login()
     name = None
     authentication_status = None
     username = None
@@ -87,23 +105,50 @@ def check_authentication():
         st.info("Username: admin | Senha: Pl@n3j@m3nt0")
         return False, None
     
-    if authentication_status == False:
+    # IMPORTANTE: O authenticator armazena o status no session_state após login
+    # Verificar o session_state APÓS chamar login() (ele atualiza lá)
+    if 'authentication_status' in st.session_state:
+        auth_status = st.session_state.get('authentication_status')
+        if auth_status is True:
+            # Usuário autenticado!
+            auth_name = st.session_state.get('name', name or 'Usuário')
+            try:
+                authenticator.logout(location='sidebar')
+            except:
+                pass
+            st.sidebar.write(f'Bem-vindo, *{auth_name}*')
+            return True, authenticator
+        elif auth_status is False:
+            st.error('Usuário/senha incorretos')
+            st.info('💡 Use o **username** (não o email). Exemplo: username = "admin"')
+            return False, None
+    
+    # Se não estiver no session_state, verificar o retorno direto do método
+    if authentication_status == True:
+        # Usuário autenticado via retorno do método - forçar rerun para atualizar session_state
+        try:
+            authenticator.logout(location='sidebar')
+        except:
+            pass
+        st.sidebar.write(f'Bem-vindo, *{name or "Usuário"}*')
+        # Forçar rerun para garantir que o session_state seja atualizado
+        st.rerun()
+        return True, authenticator
+    elif authentication_status == False:
         st.error('Usuário/senha incorretos')
         st.info('💡 Use o **username** (não o email). Exemplo: username = "admin"')
         return False, None
-    elif authentication_status == None:
+    
+    # Se authentication_status é None, mostrar formulário de login
+    if authentication_status is None:
         st.warning('Por favor, insira seu usuário e senha')
         with st.expander("ℹ️ Informações de Login"):
             st.write("**Username:** admin")
             st.write("**Senha:** Pl@n3j@m3nt0")
             st.write("⚠️ Use o **username** (admin), não o email!")
         return False, None
-    elif authentication_status:
-        # Usuário autenticado
-        authenticator.logout(location='sidebar')
-        st.sidebar.write(f'Bem-vindo, *{name}*')
-        return True, authenticator
     
+    # Fallback
     return False, None
 
 # Carregar mapeamento de colunas
