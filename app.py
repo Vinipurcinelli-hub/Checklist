@@ -45,12 +45,12 @@ def check_authentication():
     if config is None:
         return False, None
     
+    # Versão mais recente do streamlit-authenticator não aceita preauthorized no construtor
     authenticator = stauth.Authenticate(
         config['credentials'],
         config['cookie']['name'],
         config['cookie']['key'],
-        config['cookie']['expiry_days'],
-        config.get('preauthorized', {})
+        config['cookie']['expiry_days']
     )
     
     name, authentication_status, username = authenticator.login('Login', 'main')
