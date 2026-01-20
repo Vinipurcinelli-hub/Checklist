@@ -322,6 +322,35 @@ def format_value(value, column_name=None):
         # Se for string, tentar detectar formato de data
         value_str = str(value).strip()
         
+        # Detectar número serial do Excel (datas como números grandes, ex: 46388)
+        # Datas do Excel geralmente estão entre 1 (01/01/1900) e ~50000 (ano 2037)
+        if is_extintor_date:
+            try:
+                num_val = float(value_str)
+                # Se for um número entre 1 e 100000, pode ser data serial do Excel
+                if 1 <= num_val <= 100000:
+                    # Converter número serial do Excel para data
+                    # Excel conta dias desde 30/12/1899 (mas pandas usa 01/01/1970)
+                    # Usar pd.to_datetime com origin='1899-12-30' e unit='D'
+                    try:
+                        date_value = pd.to_datetime(num_val - 2, origin='1899-12-30', unit='D')
+                        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
+                                'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                        return f"{meses[date_value.month - 1]}-{date_value.year}"
+                    except:
+                        # Tentar método alternativo
+                        try:
+                            from datetime import datetime, timedelta
+                            excel_epoch = datetime(1899, 12, 30)
+                            date_value = excel_epoch + timedelta(days=int(num_val) - 2)
+                            meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
+                                    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                            return f"{meses[date_value.month - 1]}-{date_value.year}"
+                        except:
+                            pass
+            except (ValueError, TypeError):
+                pass
+        
         # Padrões comuns de data: YYYY-MM-DD HH:MM:SS ou YYYY-MM-DD
         import re
         date_patterns = [
@@ -374,8 +403,23 @@ def format_value(value, column_name=None):
         # Se for string, tentar converter
         value_str = str(value).strip()
         
-        # Primeiro, substituir números como "48.0" por "48" (mas manter "48.5" como está)
+        # Verificar se é uma lista de números separados por vírgula ou ponto e vírgula
+        # Exemplo: "1, 5, 24" ou "1;5;24" ou "1,5,24"
         import re
+        # Padrão para detectar listas de números: números separados por vírgula/ponto e vírgula/espaço
+        list_pattern = r'^[\d\s,;]+$'
+        if re.match(list_pattern, value_str):
+            # Limpar e formatar como lista separada por vírgula
+            # Remover espaços extras e normalizar separadores
+            numbers = re.findall(r'\d+', value_str)
+            if len(numbers) > 1:
+                # Formatar como "1, 5, 24"
+                return ', '.join(numbers)
+            elif len(numbers) == 1:
+                # Se for apenas um número, retornar formatado
+                return numbers[0]
+        
+        # Primeiro, substituir números como "48.0" por "48" (mas manter "48.5" como está)
         pattern = r'\b\d+\.0\b'
         value_str = re.sub(pattern, lambda m: str(int(float(m.group()))), value_str)
         
@@ -686,7 +730,10 @@ def generate_pdf(df, index, column_mapping=None):
         
         # Formatar valor das observações gerais
         value_str = str(obs_geral)
-        # Não limitar manualmente - deixar o ReportLab quebrar automaticamente
+        # Preservar quebras de linha: substituir \n por <br/> para o ReportLab
+        value_str = value_str.replace('\n', '<br/>')
+        # Também substituir \r\n (Windows) e \r (Mac)
+        value_str = value_str.replace('\r\n', '<br/>').replace('\r', '<br/>')
         
         item_text = f"• <b>{nome_obs}:</b> {value_str}"
         story.append(Paragraph(item_text, normal_style))
