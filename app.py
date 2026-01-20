@@ -724,15 +724,34 @@ def generate_pdf(df, index, column_mapping=None):
                 # Formatar valor removendo decimais desnecessários
                 value_str = format_value(item_value, col_name_original)
                 
-                # Preservar quebras de linha: substituir \n por <br/> para o ReportLab
-                value_str = str(value_str).replace('\n', '<br/>')
-                # Também substituir \r\n (Windows) e \r (Mac)
-                value_str = value_str.replace('\r\n', '<br/>').replace('\r', '<br/>')
+                # Verificar se é campo de observações
+                is_observacao = 'observações' in item_name.lower() or 'observacoes' in item_name.lower()
                 
-                # Não limitar o nome do item - deixar quebrar naturalmente
-                # O ReportLab vai quebrar automaticamente se necessário
+                if is_observacao:
+                    # Para observações: quebrar linha após o nome e adicionar bullet points em cada linha
+                    # Preservar quebras de linha: substituir \n por <br/> para o ReportLab
+                    value_str = str(value_str).replace('\n', '<br/>')
+                    value_str = value_str.replace('\r\n', '<br/>').replace('\r', '<br/>')
+                    
+                    # Dividir por quebras de linha e adicionar bullet point em cada linha
+                    linhas = value_str.split('<br/>')
+                    linhas_formatadas = []
+                    for linha in linhas:
+                        linha = linha.strip()
+                        if linha:  # Só adicionar se a linha não estiver vazia
+                            linhas_formatadas.append(f"• {linha}")
+                    
+                    # Juntar todas as linhas com quebra de linha
+                    value_str_formatado = '<br/>'.join(linhas_formatadas)
+                    
+                    # Quebrar linha após o nome do item
+                    item_text = f"• <b>{item_name}:</b><br/>{value_str_formatado}"
+                else:
+                    # Para outros campos: apenas preservar quebras de linha
+                    value_str = str(value_str).replace('\n', '<br/>')
+                    value_str = value_str.replace('\r\n', '<br/>').replace('\r', '<br/>')
+                    item_text = f"• <b>{item_name}:</b> {value_str}"
                 
-                item_text = f"• <b>{item_name}:</b> {value_str}"
                 story.append(Paragraph(item_text, normal_style))
                 story.append(Spacer(1, item_spacing))
             
@@ -753,7 +772,19 @@ def generate_pdf(df, index, column_mapping=None):
         # Também substituir \r\n (Windows) e \r (Mac)
         value_str = value_str.replace('\r\n', '<br/>').replace('\r', '<br/>')
         
-        item_text = f"• <b>{nome_obs}:</b> {value_str}"
+        # Dividir por quebras de linha e adicionar bullet point em cada linha
+        linhas = value_str.split('<br/>')
+        linhas_formatadas = []
+        for linha in linhas:
+            linha = linha.strip()
+            if linha:  # Só adicionar se a linha não estiver vazia
+                linhas_formatadas.append(f"• {linha}")
+        
+        # Juntar todas as linhas com quebra de linha
+        value_str_formatado = '<br/>'.join(linhas_formatadas)
+        
+        # Quebrar linha após o nome do item
+        item_text = f"• <b>{nome_obs}:</b><br/>{value_str_formatado}"
         story.append(Paragraph(item_text, normal_style))
         story.append(Spacer(1, item_spacing))
     
