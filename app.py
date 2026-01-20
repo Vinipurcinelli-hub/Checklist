@@ -299,6 +299,29 @@ def format_value(value, column_name=None):
         if 'extintor' in col_lower and ('validade' in col_lower or 'data' in col_lower):
             is_extintor_date = True
     
+    # Verificar se é número serial do Excel ANTES de qualquer outra conversão
+    # Isso é especialmente importante para extintores que podem vir como número
+    if is_extintor_date:
+        try:
+            # Se for um número (int ou float) diretamente
+            if isinstance(value, (int, float)):
+                num_val = float(value)
+                # Se for um número entre 1 e 100000, pode ser data serial do Excel
+                if 1 <= num_val <= 100000:
+                    # Converter número serial do Excel para data
+                    # Excel conta dias desde 30/12/1899
+                    try:
+                        from datetime import datetime, timedelta
+                        excel_epoch = datetime(1899, 12, 30)
+                        date_value = excel_epoch + timedelta(days=int(num_val) - 2)
+                        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
+                                'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                        return f"{meses[date_value.month - 1]}-{date_value.year}"
+                    except Exception as e:
+                        pass
+        except (ValueError, TypeError):
+            pass
+    
     # Tentar detectar e formatar datas primeiro
     try:
         # Se for um Timestamp do pandas
@@ -333,21 +356,14 @@ def format_value(value, column_name=None):
                     # Excel conta dias desde 30/12/1899 (mas pandas usa 01/01/1970)
                     # Usar pd.to_datetime com origin='1899-12-30' e unit='D'
                     try:
-                        date_value = pd.to_datetime(num_val - 2, origin='1899-12-30', unit='D')
+                        from datetime import datetime, timedelta
+                        excel_epoch = datetime(1899, 12, 30)
+                        date_value = excel_epoch + timedelta(days=int(num_val) - 2)
                         meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
                                 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
                         return f"{meses[date_value.month - 1]}-{date_value.year}"
                     except:
-                        # Tentar método alternativo
-                        try:
-                            from datetime import datetime, timedelta
-                            excel_epoch = datetime(1899, 12, 30)
-                            date_value = excel_epoch + timedelta(days=int(num_val) - 2)
-                            meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
-                                    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-                            return f"{meses[date_value.month - 1]}-{date_value.year}"
-                        except:
-                            pass
+                        pass
             except (ValueError, TypeError):
                 pass
         
@@ -396,6 +412,20 @@ def format_value(value, column_name=None):
     try:
         # Se for um número float que é equivalente a um inteiro
         if isinstance(value, (int, float)):
+            # Se for extintor e for um número grande, tentar converter como data serial do Excel novamente
+            if is_extintor_date:
+                num_val = float(value)
+                if 1 <= num_val <= 100000:
+                    try:
+                        from datetime import datetime, timedelta
+                        excel_epoch = datetime(1899, 12, 30)
+                        date_value = excel_epoch + timedelta(days=int(num_val) - 2)
+                        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
+                                'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                        return f"{meses[date_value.month - 1]}-{date_value.year}"
+                    except:
+                        pass
+            
             if isinstance(value, float) and value.is_integer():
                 return str(int(value))
             return str(value)
@@ -710,6 +740,11 @@ def generate_pdf(df, index, column_mapping=None):
                 
                 # Formatar valor removendo decimais desnecessários
                 value_str = format_value(item_value, col_name_original)
+                
+                # Preservar quebras de linha: substituir \n por <br/> para o ReportLab
+                value_str = str(value_str).replace('\n', '<br/>')
+                # Também substituir \r\n (Windows) e \r (Mac)
+                value_str = value_str.replace('\r\n', '<br/>').replace('\r', '<br/>')
                 
                 # Não limitar o nome do item - deixar quebrar naturalmente
                 # O ReportLab vai quebrar automaticamente se necessário
