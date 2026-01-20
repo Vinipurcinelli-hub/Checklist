@@ -299,32 +299,9 @@ def format_value(value, column_name=None):
         if 'extintor' in col_lower and ('validade' in col_lower or 'data' in col_lower):
             is_extintor_date = True
     
-    # Verificar se é número serial do Excel ANTES de qualquer outra conversão
-    # Isso é especialmente importante para extintores que podem vir como número
-    if is_extintor_date:
-        try:
-            # Se for um número (int ou float) diretamente
-            if isinstance(value, (int, float)):
-                num_val = float(value)
-                # Se for um número entre 1 e 100000, pode ser data serial do Excel
-                if 1 <= num_val <= 100000:
-                    # Converter número serial do Excel para data
-                    # Excel conta dias desde 30/12/1899
-                    try:
-                        from datetime import datetime, timedelta
-                        excel_epoch = datetime(1899, 12, 30)
-                        date_value = excel_epoch + timedelta(days=int(num_val) - 2)
-                        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
-                                'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-                        return f"{meses[date_value.month - 1]}-{date_value.year}"
-                    except Exception as e:
-                        pass
-        except (ValueError, TypeError):
-            pass
-    
-    # Tentar detectar e formatar datas primeiro
+    # Tentar detectar e formatar datas primeiro (PRIORIDADE: Timestamp > datetime > string > número serial)
     try:
-        # Se for um Timestamp do pandas
+        # Se for um Timestamp do pandas (PRIORIDADE MÁXIMA - pandas já converteu corretamente)
         if isinstance(value, pd.Timestamp):
             if is_extintor_date:
                 # Formato MMM-AAAA para extintores
@@ -345,27 +322,30 @@ def format_value(value, column_name=None):
         # Se for string, tentar detectar formato de data
         value_str = str(value).strip()
         
-        # Detectar número serial do Excel (datas como números grandes, ex: 46388)
-        # Datas do Excel geralmente estão entre 1 (01/01/1900) e ~50000 (ano 2037)
+        # Tentar converter string para datetime PRIMEIRO (antes de tentar como número serial)
         if is_extintor_date:
             try:
-                num_val = float(value_str)
-                # Se for um número entre 1 e 100000, pode ser data serial do Excel
-                if 1 <= num_val <= 100000:
-                    # Converter número serial do Excel para data
-                    # Excel conta dias desde 30/12/1899 (mas pandas usa 01/01/1970)
-                    # Usar pd.to_datetime com origin='1899-12-30' e unit='D'
+                # Tentar vários formatos de data comuns
+                date_formats = ['%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', '%d/%m/%y']
+                date_value = None
+                for fmt in date_formats:
                     try:
-                        from datetime import datetime, timedelta
-                        excel_epoch = datetime(1899, 12, 30)
-                        date_value = excel_epoch + timedelta(days=int(num_val) - 2)
-                        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
-                                'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-                        return f"{meses[date_value.month - 1]}-{date_value.year}"
+                        date_value = pd.to_datetime(value_str, format=fmt, errors='raise')
+                        break
                     except:
-                        pass
+                        continue
+                
+                # Se não funcionou com formatos específicos, tentar parse automático
+                if date_value is None:
+                    date_value = pd.to_datetime(value_str, errors='raise')
+                
+                # Formato MMM-AAAA para extintores
+                meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
+                        'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                return f"{meses[date_value.month - 1]}-{date_value.year}"
             except (ValueError, TypeError):
-                pass
+                pass  # Não é uma data em formato string, continuar
+        
         
         # Padrões comuns de data: YYYY-MM-DD HH:MM:SS ou YYYY-MM-DD
         import re
@@ -394,7 +374,7 @@ def format_value(value, column_name=None):
                             return f"{meses[int(month) - 1]}-{year}"
                         return f"{day}-{month}-{year}"
         
-        # Tentar converter string para datetime
+        # Tentar converter string para datetime (fallback)
         try:
             date_value = pd.to_datetime(value_str, errors='raise')
             if is_extintor_date:
@@ -408,13 +388,16 @@ def format_value(value, column_name=None):
     except:
         pass  # Continuar com formatação numérica
     
-    # Tentar converter para número
+    # Tentar converter para número (ÚLTIMA OPÇÃO - só se não for Timestamp, datetime ou string de data)
     try:
         # Se for um número float que é equivalente a um inteiro
         if isinstance(value, (int, float)):
-            # Se for extintor e for um número grande, tentar converter como data serial do Excel novamente
+            # Se for extintor e for um número grande, tentar converter como data serial do Excel
+            # (Só fazer isso se não foi possível converter como Timestamp/datetime/string antes)
             if is_extintor_date:
                 num_val = float(value)
+                # Números seriais do Excel para datas estão geralmente entre 1 e 100000
+                # Mas precisamos ter certeza que não é apenas um número normal
                 if 1 <= num_val <= 100000:
                     try:
                         from datetime import datetime, timedelta
