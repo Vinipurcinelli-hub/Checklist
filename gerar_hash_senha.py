@@ -14,7 +14,7 @@ if sys.platform == 'win32':
     os.system('chcp 65001 >nul 2>&1')
 
 # EDITAR AQUI: Coloque a senha que deseja gerar o hash
-password = 'Cl@udin3iIt@p3mirim'
+password = 'M@n@ut3nc@0It@p3mirim'
 
 print(f"Gerando hash para a senha: '{password}'")
 print("-" * 60)

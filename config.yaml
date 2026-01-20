@@ -12,6 +12,12 @@ credentials:
       # Hash da senha: Cl@udin3iIt@p3mirim
       # Gerado usando: python gerar_hash_senha.py
       password: $2b$12$yVI/DAreu9gqwnfSA76CXeuIoz3ACNmP8HlIQIEJ/ZQGNpGISIVb.
+    manutencao:
+      email: manutencao@suzantur.com.br
+      name: Manutenção
+      # Hash da senha: M@n@ut3nc@0It@p3mirim
+      # Gerado usando: python gerar_hash_senha.py
+      password: $2b$12$GPiGTN6PCPc3esLJGdEFieX9UopShrtG1H0etrrk7baeNJpKWA1r
 cookie:
   expiry_days: 30
   key: checklist_vistoria_key_12345
@@ -20,3 +26,4 @@ preauthorized:
   emails:
     - planejamento.visa@suzantur.com.br
     - claudinei@suzantur.com.br
+    - manutencao@suzantur.com.br
