@@ -570,6 +570,8 @@ def generate_pdf(df, index, column_mapping=None):
     vistoriador = 'N/A'
     data_vistoria = 'N/A'
     carimbo = None
+    quilometragem = None
+    wifi = None
     
     for col in df.columns:
         col_lower = col.lower()
@@ -586,6 +588,10 @@ def generate_pdf(df, index, column_mapping=None):
             data_vistoria = str(row.get(col, 'N/A'))
         elif 'carimbo' in col_lower and 'data' in col_lower:
             carimbo = row.get(col, None)
+        elif 'quilometragem' in col_lower:
+            quilometragem = row.get(col, None)
+        elif 'wi-fi' in col_lower or 'wifi' in col_lower:
+            wifi = row.get(col, None)
     # Formatar data_hora no formato brasileiro DD-MM-AAAA
     if pd.notna(carimbo):
         if isinstance(carimbo, pd.Timestamp):
@@ -611,6 +617,22 @@ def generate_pdf(df, index, column_mapping=None):
     # Usar data_hora_formatada (do carimbo) como "Data da Vistoria"
     info_text = f"<b>Cidade:</b> {cidade} | <b>Vistoriador:</b> {vistoriador}<br/>"
     info_text += f"<b>Data da Vistoria:</b> {data_hora_formatada}"
+    
+    # Adicionar Km se estiver preenchido
+    if pd.notna(quilometragem) and str(quilometragem).strip() and str(quilometragem).strip() not in ['N/A', 'nan', 'None', '']:
+        # Formatar quilometragem (remover decimais desnecessários se for número)
+        try:
+            km_value = float(quilometragem)
+            if km_value == int(km_value):
+                km_value = int(km_value)
+            info_text += f" | <b>Km:</b> {km_value}"
+        except (ValueError, TypeError):
+            info_text += f" | <b>Km:</b> {str(quilometragem).strip()}"
+    
+    # Adicionar Wifi se estiver preenchido
+    if pd.notna(wifi) and str(wifi).strip() and str(wifi).strip() not in ['N/A', 'nan', 'None', '']:
+        info_text += f" | <b>Wifi:</b> {str(wifi).strip()}"
+    
     story.append(Paragraph(info_text, info_style))
     story.append(Spacer(1, 0.1*inch))
     
@@ -629,7 +651,8 @@ def generate_pdf(df, index, column_mapping=None):
         
         # Ignorar colunas de metadados
         if any(x in col_lower for x in ['carimbo', 'endereço', 'e-mail', 'email', 'prefixo', 
-                                         'data da vistoria', 'cidade', 'vistoriador', 'wi-fi', 'wifi']):
+                                         'data da vistoria', 'cidade', 'vistoriador', 'wi-fi', 'wifi',
+                                         'quilometragem']):
             continue
         
         # Ignorar colunas de fotos
