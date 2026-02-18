@@ -39,7 +39,19 @@ Se preferir não commitar o `config.yaml` com senhas no repositório:
 2. Adicione o conteúdo do `config.yaml` como secrets
 3. Modifique o código para ler de `st.secrets` em vez de arquivo
 
-### 4. Acessar a Aplicação
+### 4. Integração com Google Planilhas (dados em tempo real)
+
+Para o app usar a planilha do Google (vinculada ao Forms) em vez de depender do arquivo `base_de_dados.xlsx`:
+
+1. No Google Cloud: ative a **Google Sheets API**, crie uma **conta de serviço** e baixe o JSON de credenciais.
+2. Compartilhe a planilha com o e-mail da conta de serviço como **Visualizador**.
+3. No Streamlit Cloud, em "Settings" → "Secrets", adicione:
+   - `GOOGLE_SHEETS_ID`: ID da planilha (da URL: `.../d/<ID>/edit`).
+   - `GOOGLE_CREDENTIALS`: conteúdo do JSON da conta de serviço (objeto ou string JSON).
+
+Se a API do Google falhar, o app usa automaticamente o `base_de_dados.xlsx` do repositório (fallback). Na sidebar é exibido se os dados vêm do Google ou do arquivo local.
+
+### 5. Acessar a Aplicação
 
 Após o deploy, você receberá uma URL como:
 `https://seu-app.streamlit.app`

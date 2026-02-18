@@ -14,6 +14,17 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 import re
+import os
+import time
+import json as _json
+
+# Integração Google Sheets (opcional): dependências só usadas se configurado
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+    _GOOGLE_AVAILABLE = True
+except ImportError:
+    _GOOGLE_AVAILABLE = False
 
 # Configuração da página
 st.set_page_config(
@@ -142,6 +153,108 @@ def check_authentication():
     # Fallback
     return False, None
 
+
+# ---------- Integração Google Sheets (fonte robusta com fallback para xlsx) ----------
+
+def _get_google_sheets_id():
+    """Obtém o ID da planilha: Streamlit Secrets ou variável de ambiente."""
+    try:
+        if hasattr(st, "secrets") and st.secrets.get("GOOGLE_SHEETS_ID"):
+            return st.secrets["GOOGLE_SHEETS_ID"].strip()
+    except Exception:
+        pass
+    return (os.environ.get("GOOGLE_SHEETS_ID") or "").strip() or None
+
+
+def _get_google_credentials():
+    """
+    Obtém credenciais de conta de serviço: Streamlit Secrets (dict ou JSON string)
+    ou arquivo em GOOGLE_APPLICATION_CREDENTIALS. Retorna None se não configurado.
+    """
+    if not _GOOGLE_AVAILABLE:
+        return None
+    # 1) Streamlit Secrets (produção)
+    try:
+        if hasattr(st, "secrets") and st.secrets.get("GOOGLE_CREDENTIALS"):
+            raw = st.secrets["GOOGLE_CREDENTIALS"]
+            if isinstance(raw, dict):
+                return ServiceAccountCredentials.from_service_account_info(raw)
+            if isinstance(raw, str):
+                return ServiceAccountCredentials.from_service_account_info(_json.loads(raw))
+    except Exception:
+        pass
+    # 2) Arquivo JSON local (variável de ambiente)
+    path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    if path and os.path.isfile(path):
+        try:
+            return ServiceAccountCredentials.from_service_account_file(path)
+        except Exception:
+            pass
+    return None
+
+
+def _normalize_vistoria_df(df):
+    """Normaliza o DataFrame: coluna carimbo como datetime e ordenação por data (mais recente primeiro)."""
+    if df is None or df.empty:
+        return df
+    df = df.copy()
+    for col in df.columns:
+        if "carimbo" in str(col).lower() and "data" in str(col).lower():
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+            df = df.sort_values(col, ascending=False).reset_index(drop=True)
+            break
+    return df
+
+
+# Cache com TTL para não sobrecarregar a API e manter dados relativamente frescos
+_DATA_CACHE_TTL_SECONDS = 300  # 5 minutos
+
+
+@st.cache_data(ttl=_DATA_CACHE_TTL_SECONDS)
+def _fetch_data_from_google_sheets(spreadsheet_id: str):
+    """
+    Lê a primeira aba da planilha Google. Retorna DataFrame com primeira linha como cabeçalho.
+    Usada apenas quando GOOGLE_SHEETS_ID e credenciais estão configurados.
+    """
+    if not _GOOGLE_AVAILABLE:
+        raise RuntimeError("gspread/google-auth não instalados")
+    creds = _get_google_credentials()
+    if creds is None:
+        raise ValueError("Credenciais Google não configuradas")
+    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    creds = creds.with_scopes(scopes)
+    max_retries = 3
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            gc = gspread.authorize(creds)
+            sh = gc.open_by_key(spreadsheet_id)
+            ws = sh.sheet1
+            rows = ws.get_all_values()
+            if not rows:
+                return pd.DataFrame()
+            df = pd.DataFrame(rows[1:], columns=rows[0])
+            return df
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                time.sleep(1.0 * (attempt + 1))
+    raise last_error
+
+
+@st.cache_data
+def _load_data_from_xlsx():
+    """Carrega base a partir do arquivo local (fallback quando Google não está configurado ou falha)."""
+    try:
+        try:
+            df = pd.read_excel("base_de_dados.xlsx", engine="openpyxl")
+        except Exception:
+            df = pd.read_excel("base_de_dados.xlsx")
+    except Exception:
+        return pd.DataFrame()
+    return _normalize_vistoria_df(df)
+
+
 # Carregar mapeamento de colunas
 @st.cache_data
 def load_column_mapping():
@@ -168,32 +281,27 @@ def load_column_mapping():
         st.warning(f"Erro ao carregar mapeamento de colunas: {e}")
         return {}
 
-# Carregar dados
-@st.cache_data
+# Carregar dados: Google Planilhas (se configurado) com fallback automático para xlsx
 def load_data():
-    try:
-        # Tentar diferentes encodings
+    """
+    Fonte robusta: tenta Google Sheets primeiro; em caso de falha ou ausência de config,
+    usa base_de_dados.xlsx. Define st.session_state["data_source"] para exibir a fonte.
+    """
+    spreadsheet_id = _get_google_sheets_id()
+    if spreadsheet_id and _GOOGLE_AVAILABLE:
         try:
-            df = pd.read_excel('base_de_dados.xlsx', engine='openpyxl')
-        except:
-            df = pd.read_excel('base_de_dados.xlsx')
-        
-        # Converter coluna de data/hora se necessário
-        for col in df.columns:
-            if 'carimbo' in col.lower() and 'data' in col.lower():
-                df[col] = pd.to_datetime(df[col], errors='coerce')
-                break
-        
-        # Ordenar por data/hora mais recente primeiro
-        for col in df.columns:
-            if 'carimbo' in col.lower() and 'data' in col.lower():
-                df = df.sort_values(col, ascending=False).reset_index(drop=True)
-                break
-        
-        return df
-    except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        return pd.DataFrame()
+            df = _fetch_data_from_google_sheets(spreadsheet_id)
+            df = _normalize_vistoria_df(df)
+            if df is not None and not df.empty:
+                st.session_state["data_source"] = "google"
+                return df
+        except Exception:
+            # Fallback silencioso para xlsx; não quebrar a experiência do usuário
+            pass
+    # Fonte local (xlsx) ou fallback após falha do Google
+    df = _load_data_from_xlsx()
+    st.session_state["data_source"] = "xlsx"
+    return df
 
 # Função para obter informações da coluna do mapeamento
 def get_column_info(col_name, column_mapping):
@@ -869,7 +977,11 @@ def main():
     # Carregar dados e mapeamento
     df = load_data()
     column_mapping = load_column_mapping()
-    
+
+    # Indicar fonte dos dados (Google Planilhas ou arquivo local)
+    _src = st.session_state.get("data_source", "xlsx")
+    st.sidebar.caption("📊 Dados: Google Planilhas" if _src == "google" else "📊 Dados: arquivo local")
+
     if df.empty:
         st.warning("Nenhum dado encontrado na planilha.")
         return

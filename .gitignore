@@ -26,3 +26,8 @@ Thumbs.db
 # Project specific
 *.log
 temp_*.py
+
+# Google Service Account (nunca commitar)
+google_credentials.json
+*-credentials*.json
+*service-account*.json
